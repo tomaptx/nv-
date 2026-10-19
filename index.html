@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nv-</title>
+<style>
+:root {
+  --bg: #0d1015; --panel: #151a21; --panel2: #1d232c; --line: #29303b;
+  --text: #e8ebf0; --dim: #8d96a5; --faint: #5a6371;
+  --green: #3fb950; --yellow: #e3a72f; --red: #f2564d; --purple: #b56cff;
+  --g0: #4c8dff; --g1: #2fc28a; --g2: #f0a63a; --g3: #e3609f; --g4: #3dd6d0; --g5: #d58cff; --g6: #f2e36b; --g7: #ff8f6b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1600px; margin: 0 auto; padding: 16px 16px 28px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; }
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; color: var(--dim); font-size: 13px; }
+.chip b { color: var(--text); font-weight: 600; }
+.spacer { flex: 1; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; }
+.dot.stale { background: var(--red); }
+.err { background: #3a1716; border: 1px solid #6b2522; color: #ffb4ae; padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; display: none; }
+
+.main { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; position: relative; }
+.main.quad { grid-template-columns: 1fr minmax(220px, 18%) 1fr; grid-template-areas: "q0 nv q1" "q2 nv q3"; }
+.main.pair { grid-template-columns: 1fr minmax(220px, 18%) 1fr; grid-template-areas: "q0 nv q1"; }
+.main.single { grid-template-columns: 1fr; }
+.main.single .gauges { grid-template-columns: repeat(6, 1fr); }
+.main.single .row3 { grid-template-columns: repeat(6, 1fr); }
+.main.single .leg { grid-column: span 2; width: auto; margin-left: 0; }
+.extra { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; margin-top: 14px; }
+.extra:empty { display: none; }
+.gpu.missing { opacity: .55; border-style: dashed; border-top-style: solid; display: flex; flex-direction: column; min-height: 200px; }
+.gpu.missing .nd { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--dim); font-weight: 600; }
+#nvover { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 2; display: none; }
+.main.ring #nvlink { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  #nvover { display: none !important; }
+  .main.quad, .main.pair, .main, .extra { grid-template-columns: 1fr; grid-template-areas: none; }
+  .main.quad > *, .main.pair > * { grid-area: auto !important; }
+}
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.gpu { border-top: 4px solid var(--c); padding: 10px 14px 6px; }
+.gpu.hot { animation: hotcard 1s steps(2, start) infinite; }
+@keyframes hotcard { 50% { border-color: var(--red); box-shadow: 0 0 0 1px var(--red), 0 0 18px #f2564d55; } }
+.ghead { display: flex; align-items: baseline; gap: 10px; }
+.ghead .id { font-size: 18px; font-weight: 700; color: var(--c); }
+.ghead .model { color: var(--dim); font-size: 12px; }
+.ghead .bdf { margin-left: auto; color: var(--faint); font-size: 11px; }
+.gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 22px; margin-top: 4px; padding: 0 6px; }
+.gauge { text-align: center; min-width: 0; }
+.gauge svg { width: 100%; max-width: 124px; display: block; margin: 0 auto; }
+.gauge .lbl { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; margin-top: -4px; }
+.gauge .sub { font-size: 12px; margin-top: 0; min-height: 16px; color: var(--dim); }
+.gauge.flash svg { animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+
+#nvlink { padding: 12px 14px; position: relative; display: flex; flex-direction: column; justify-content: center; min-height: 280px; }
+#nvlink .ptitle { position: absolute; top: 12px; left: 14px; right: 14px; }
+#nvlink .nvnote { position: absolute; bottom: 10px; left: 14px; right: 14px; }
+#nvlink.alert { border-color: var(--red); background: #2a1416; }
+.ptitle { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.ptitle h2 { margin: 0; font-size: 15px; font-weight: 650; }
+.ptitle span { color: var(--dim); font-size: 12px; }
+#nvsvg { width: 100%; max-width: 330px; margin: 0 auto; display: block; }
+.nvnote { font-size: 12px; color: var(--dim); margin-top: 8px; }
+.nvnote div { padding: 3px 0; border-top: 1px solid var(--line); }
+.nvnote div:first-child { border-top: 0; }
+.nvnote .bad { color: var(--red); font-weight: 600; }
+.nvnote .warn { color: var(--yellow); }
+
+.sysrow { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-top: 14px; }
+@media (max-width: 1100px) { .sysrow { grid-template-columns: 1fr; } }
+#cpucard, #ramcard { padding: 12px 14px; }
+.cpuwrap { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
+.cpugauges { display: flex; gap: 10px; }
+.cpugauges .gauge { width: 118px; }
+.threads { display: grid; grid-auto-flow: column; grid-template-rows: 1fr 1fr; gap: 4px 3px; height: 112px; }
+.thr { background: var(--panel2); border-radius: 3px; position: relative; overflow: hidden; min-width: 6px; }
+.thr i { position: absolute; left: 0; right: 0; bottom: 0; background: #6f9bff; transition: height .4s; }
+.thr span { position: absolute; left: 0; right: 0; top: 2px; text-align: center; font-size: 8px; color: var(--faint); }
+.tlegend { color: var(--faint); font-size: 11px; margin-top: 6px; }
+.ramwrap { display: grid; grid-template-columns: 124px 1fr; gap: 14px; align-items: center; }
+.stack { display: flex; height: 12px; background: #4b6b53; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+.stack i { display: block; height: 100%; transition: width .4s; }
+.s-used { background: #6f9bff; } .s-cache { background: #8a6fd1; } .s-free { background: #2b3a2f; }
+.rrow { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); padding: 3px 0; }
+.rrow b { margin-left: auto; color: var(--text); font-weight: 600; }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.sw.s-used { background: #6f9bff; } .sw.s-cache { background: #8a6fd1; } .sw.s-free { background: #4b6b53; } .sw.s-swap { background: #e0a458; }
+.rnote { color: var(--faint); font-size: 11px; margin-top: 6px; }
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; align-items: center;
+  border-top: 1px solid var(--line); margin-top: 4px; padding: 6px 4px 0; }
+/* Legend sits in the middle column; its right edge lines up with the right edge of the Clock dial above. */
+.leg { font-size: 12px; justify-self: start; width: calc(50% + 62px + 36px); margin-left: -36px; }
+.leg div { display: grid; grid-template-columns: 9px 1fr 38px 82px; white-space: nowrap; align-items: center; gap: 6px; padding: 2px 0; border-top: 1px solid var(--line); }
+.leg div:first-child { border-top: 0; }
+.leg i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.leg b { font-weight: 650; text-align: right; }
+.leg small { color: var(--faint); font-size: 11px; text-align: right; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="host">nv-</h1>
+    <span class="chip">nv- v14</span>
+    <span class="chip">Uptime <b id="uptime">—</b></span>
+    <span class="spacer"></span>
+    <span class="chip"><span class="dot" id="dot"></span><b id="updated">—</b></span>
+  </header>
+  <div class="err" id="err"></div>
+  <section class="main" id="main"></section>
+  <section class="extra" id="extra"></section>
+  <section class="sysrow">
+    <div class="card" id="cpucard">
+      <div class="ptitle"><h2>CPU</h2><span id="cpuinfo"></span></div>
+      <div class="cpuwrap">
+        <div class="cpugauges" id="cpugauges"></div>
+        <div class="threads-wrap"><div class="threads" id="threads"></div>
+          <div class="tlegend">Each bar is one thread · top row and bottom row of a column share one physical core</div></div>
+      </div>
+    </div>
+    <div class="card" id="ramcard">
+      <div class="ptitle"><h2>Memory</h2><span id="raminfo"></span></div>
+      <div class="ramwrap">
+        <div id="ramgauge"></div>
+        <div class="ramdetail">
+          <div class="stack"><i class="s-used" id="r-used"></i><i class="s-cache" id="r-cache"></i></div>
+          <div class="rrow"><span class="sw s-used"></span>In use by programs<b id="rv-used">—</b></div>
+          <div class="rrow"><span class="sw s-cache"></span>File cache<b id="rv-cache">—</b></div>
+          <div class="rrow"><span class="sw s-free"></span>Free<b id="rv-free">—</b></div>
+          <div class="rrow"><span class="sw s-swap"></span>Swap<b id="rv-swap">—</b></div>
+          <div class="rnote">File cache is released automatically when programs need the memory.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+const ACCENT = ["--g0", "--g1", "--g2", "--g3", "--g4", "--g5", "--g6", "--g7"];
+const GREEN = "var(--green)", YELLOW = "var(--yellow)", RED = "var(--red)", NEUTRAL = "#8fb4ff";
+const LANE_GBS = { 1: 0.25, 2: 0.5, 3: 0.985, 4: 1.969, 5: 3.938, 6: 7.877 };
+const NVLINK_GBS = 25;            // per link, per direction (NVLink 2)
+let built = "", lastTime = 0, interval = 2, lastData = null;
+let zoom = 1;
+function fit() {
+  // Shrink everything evenly until the page fits the window height, and widen it so it still fills the window.
+  const w = document.querySelector(".wrap"), W = window.innerWidth, H = window.innerHeight - 6;
+  w.style.maxWidth = "none"; w.style.zoom = 1; w.style.width = W + "px";
+  let z = Math.min(1, H / w.scrollHeight);
+  for (let i = 0; i < 2; i++) {          // measured without zoom each time
+    w.style.width = W / z + "px";
+    z = Math.min(1, H / w.scrollHeight);
+  }
+  w.style.width = W / z + "px";
+  w.style.zoom = z;
+  const changed = Math.abs(z - zoom) > 0.001;
+  zoom = z;
+  return changed;
+}
+window.addEventListener("resize", () => lastData && render(lastData));
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 0) => v == null || isNaN(v) ? "—" : Number(v).toFixed(d);
+const accent = i => `var(${ACCENT[i % ACCENT.length]})`;
+
+// ---------- gauge ----------
+const CX = 60, CY = 58, A0 = -125, A1 = 125;
+function pt(r, a) { const t = a * Math.PI / 180; return [CX + r * Math.sin(t), CY - r * Math.cos(t)]; }
+function arc(r, a0, a1) {
+  if (a1 - a0 < 0.01) return "";
+  const [x0, y0] = pt(r, a0), [x1, y1] = pt(r, a1);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+function gauge(o) {
+  const min = o.min || 0, max = o.max || 1;
+  const ang = v => A0 + (A1 - A0) * Math.min(1, Math.max(0, (v - min) / (max - min)));
+  const zones = o.zones || [];
+  const zone = o.value == null ? null : zones.find(z => o.value >= z[0] && o.value < z[1]) || (o.value >= max ? zones[zones.length - 1] : null);
+  const col = zone ? zone[2] : (o.color || NEUTRAL);
+  let s = `<svg viewBox="0 0 120 104">`;
+  s += `<path d="${arc(40, A0, A1)}" stroke="var(--panel2)" stroke-width="7.5" fill="none" stroke-linecap="round"/>`;
+  zones.forEach(z => s += `<path d="${arc(51, ang(z[0]), ang(Math.min(z[1], max)))}" stroke="${z[2]}" stroke-width="3.5" fill="none" opacity=".85"/>`);
+  if (o.value != null) s += `<path d="${arc(40, A0, ang(o.value))}" stroke="${col}" stroke-width="7.5" fill="none" stroke-linecap="round"/>`;
+  if (o.marker != null) {
+    const [x0, y0] = pt(31, ang(o.marker)), [x1, y1] = pt(55, ang(o.marker));
+    s += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="var(--purple)" stroke-width="3" stroke-linecap="round"/>`;
+  }
+  s += `<text x="60" y="62" text-anchor="middle" font-size="22" font-weight="700" fill="${zone ? col : "var(--text)"}">${fmt(o.value, o.dec || 0)}</text>`;
+  s += `<text x="60" y="78" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text)">${o.unit || ""}</text>`;
+  const [lx, ly] = pt(40, A0), [rx, ry] = pt(40, A1);
+  s += `<text x="${lx + 2}" y="${ly + 16}" text-anchor="middle" font-size="10" fill="var(--dim)">${fmt(min)}</text>`;
+  s += `<text x="${rx - 2}" y="${ry + 16}" text-anchor="middle" font-size="10" fill="var(--dim)">${fmt(max, o.maxDec || 0)}</text>`;
+  s += `</svg>`;
+  return `<div class="gauge${o.flash ? " flash" : ""}">${s}<div class="lbl">${o.label}</div><div class="sub">${o.sub || ""}</div></div>`;
+}
+
+function dualGauge(o) {
+  const max = o.max || 1;
+  const ang = v => A0 + (A1 - A0) * Math.min(1, Math.max(0, v / max));
+  const IN = "#5cc8ff", OUT = "#b9a4ff";
+  let s = `<svg viewBox="0 0 120 104">`;
+  s += `<path d="${arc(46, A0, A1)}" stroke="var(--panel2)" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+  s += `<path d="${arc(39, A0, A1)}" stroke="var(--panel2)" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+  if (o.in != null) s += `<path d="${arc(46, A0, ang(o.in))}" stroke="${IN}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+  if (o.out != null) s += `<path d="${arc(39, A0, ang(o.out))}" stroke="${OUT}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+  s += `<text x="60" y="54" text-anchor="middle" font-size="17" font-weight="700" fill="${IN}">${fmt(o.in, 1)}</text>`;
+  s += `<text x="60" y="73" text-anchor="middle" font-size="17" font-weight="700" fill="${OUT}">${fmt(o.out, 1)}</text>`;
+  s += `<text x="60" y="89" text-anchor="middle" font-size="9.5" font-weight="600" fill="var(--text)">GB/s</text>`;
+  const [lx, ly] = pt(40, A0), [rx, ry] = pt(40, A1);
+  s += `<text x="${lx + 2}" y="${ly + 16}" text-anchor="middle" font-size="10" fill="var(--dim)">0</text>`;
+  s += `<text x="${rx - 2}" y="${ry + 16}" text-anchor="middle" font-size="10" fill="var(--dim)">${fmt(max, 1)}</text>`;
+  s += `</svg>`;
+  return `<div class="gauge">${s}<div class="lbl">${o.label}</div><div class="sub">${o.sub || ""}</div></div>`;
+}
+
+// ---------- GPU cards ----------
+function gpuCard(g) {
+  const memMax = g.mem_total || 1;
+  const pl = g.power_limit || 300;
+  const pMax = pl + Math.max(20, Math.round(pl * 0.067));
+  const temp = g.temp;
+  const pcieMax = (LANE_GBS[g.pcie_max_gen] || 1) * (g.pcie_width || 16);
+  const held = g.held_back || [];
+  const heldTxt = held.includes("temperature") ? `<span style="color:var(--red)">Held back: temperature</span>`
+    : held.includes("power limit") ? `<span style="color:var(--yellow)">Held back: power limit</span>`
+    : held.includes("hardware slowdown") ? `<span style="color:var(--red)">Held back: hardware</span>`
+    : held.includes("idle") ? "Idle" : "Full speed allowed";
+  return `
+    <div class="ghead"><span class="id">GPU ${g.index}</span><span class="model">${g.name || ""}</span><span class="bdf">${g.bdf || ""}</span></div>
+    <div class="gauges">
+      ${gauge({ label: "Use", value: g.util, max: 100, unit: "%", color: accent(g.index) })}
+      ${gauge({ label: "Memory", value: g.mem_used, max: memMax, unit: "GiB", dec: 1, maxDec: 0,
+          zones: [[0, memMax * .8, GREEN], [memMax * .8, memMax * .95, YELLOW], [memMax * .95, memMax * 1.001, RED]],
+          sub: `${fmt(100 * g.mem_used / memMax)}% full` })}
+      ${gauge({ label: "Temperature", value: temp, max: 100, unit: "°C",
+          zones: [[0, 60, GREEN], [60, 90, YELLOW], [90, 100.1, RED]], flash: temp >= 90,
+          sub: temp >= 90 ? `<span style="color:var(--red);font-weight:700">DANGER ZONE</span>` : "" })}
+      ${gauge({ label: "Power", value: g.power, max: pMax, unit: "W", marker: pl,
+          zones: [[0, pl * .833, GREEN], [pl * .833, pl, YELLOW], [pl, pMax + 1, RED]],
+          sub: `<span style="color:var(--purple)">▍</span>limit ${fmt(pl)} W` })}
+      ${gauge({ label: "Clock", value: g.sm_clock, max: g.sm_clock_max || 2000, unit: "MHz", sub: heldTxt })}
+      ${dualGauge({ label: "PCIe traffic", in: g.pcie_rx, out: g.pcie_tx, max: pcieMax,
+          sub: `<span style="color:#5cc8ff">outer: in</span> · <span style="color:#b9a4ff">inner: out</span>` })}
+    </div>
+    ${g.dcgm ? `<div class="row3">
+      ${coreDial(g.dcgm, g)}
+      ${gauge({ label: "DRAM active", value: g.dcgm.dram, max: 100, unit: "%", color: "#9aa7ff",
+          sub: "memory bandwidth" })}
+    </div>` : ""}`;
+}
+
+// ---------- core activity dial ----------
+const CORE_FIELDS = [["sm", "SM active", "#c9d1dc"], ["tensor", "Tensor", "#ff8a5c"], ["fp32", "FP32", "#5cc8ff"],
+                     ["fp16", "FP16", "#c792ea"], ["fp64", "FP64", "#7ee0c3"]];
+// Core counts for the "61 of 80" estimates. Volta (V100) only for now; other GPUs show percentages.
+// Volta has 64 FP32 CUDA cores, 8 tensor cores and 32 FP64 cores per SM.
+function coreCounts(g) {
+  if (!(g.arch === 5 || /V100|Titan V|GV100/i.test(g.name || ""))) return {};
+  const cores = g.cores || (/V100/i.test(g.name || "") ? 5120 : null);
+  if (!cores) return {};
+  const sm = Math.round(cores / 64);
+  return { sm, tensor: sm * 8, fp32: cores, fp64: sm * 32 };
+}
+function coreDial(c, g) {
+  const counts = coreCounts(g);
+  const ang = v => A0 + (A1 - A0) * Math.min(1, Math.max(0, (v || 0) / 100));
+  let s = `<svg viewBox="0 0 120 104">`;
+  CORE_FIELDS.forEach(([k, , col], i) => {
+    const r = 50 - i * 8;
+    s += `<path d="${arc(r, A0, A1)}" stroke="var(--panel2)" stroke-width="5" fill="none" stroke-linecap="round"/>`;
+    if (c[k] > 0.5) s += `<path d="${arc(r, A0, ang(c[k]))}" stroke="${col}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
+  });
+  s += `<text x="60" y="68" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)">${fmt(c.sm)}%</text>`;
+  s += `<text x="60" y="80" text-anchor="middle" font-size="9" font-weight="600" fill="var(--text)">SM ACTIVE</text></svg>`;
+  const est = k => counts[k] ? `${Math.round(counts[k] * (c[k] || 0) / 100).toLocaleString()} of ${counts[k].toLocaleString()}`
+                             : k === "fp16" && counts.fp32 ? "on CUDA cores" : "";
+  const leg = CORE_FIELDS.map(([k, label, col]) =>
+    `<div><i style="background:${col}"></i>${label}<b style="color:${col}">${fmt(c[k])}%</b><small>${est(k)}</small></div>`).join("");
+  return `<div class="gauge">${s}<div class="lbl">Core activity</div><div class="sub"></div></div><div class="leg">${leg}</div>`;
+}
+
+// ---------- NVLink ----------
+function nvPairs(gpus) {
+  const pairs = {}, downs = [];
+  let anyRate = false, anyLinks = false;
+  gpus.forEach(g => (g.nvlinks || []).forEach(l => {
+    anyLinks = true;
+    if (!l.up) downs.push(`GPU ${g.index} link ${l.link}`);
+    if (l.peer == null) return;
+    const [a, b] = g.index < l.peer ? [g.index, l.peer] : [l.peer, g.index];
+    const p = pairs[a + "-" + b] ||= { a, b, links: 0, down: 0, ab: 0, ba: 0, rated: false,
+      errors: { replay: 0, recovery: 0, crc_flit: 0, crc_data: 0 } };
+    if (g.index === a) { p.links++; if (!l.up) p.down++; (p.ll ||= []).push({ up: l.up }); }
+    if (l.tx != null) { if (g.index === a) p.ab += l.tx; else p.ba += l.tx; p.rated = true; anyRate = true; }
+    for (const k in l.errors || {}) p.errors[k] += l.errors[k];
+  }));
+  return { list: Object.values(pairs), downs, anyRate, anyLinks };
+}
+
+function drawNet(pos, order, net, R, byIdx) {
+  // One line per physical NVLink; a link that is down turns gray with a red glow.
+  // When the driver reports traffic per link, each pair gets a label: the number in each GPU's color is what that GPU sends.
+  const NVGREEN = "#76b900", GRAY = "#7a828e", GAP = 16;
+  const pts = Object.values(pos);
+  const ctr = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
+  let lines = "", labels = "";
+  net.list.forEach(p => {
+    if (!pos[p.a] || !pos[p.b]) return;
+    const [x1, y1] = pos[p.a], [x2, y2] = pos[p.b];
+    const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+    const links = p.ll || [];
+    links.forEach((lk, k) => {
+      const off = (k - (links.length - 1) / 2) * GAP;
+      const sx = x1 + ux * R + nx * off, sy = y1 + uy * R + ny * off, ex = x2 - ux * R + nx * off, ey = y2 - uy * R + ny * off;
+      if (!lk.up) lines += `<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="var(--red)" stroke-width="10" stroke-linecap="round" opacity=".85" filter="url(#nvglow)"/>`;
+      lines += `<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="${lk.up ? NVGREEN : GRAY}" stroke-width="3.5" stroke-linecap="round"/>`;
+    });
+    if (p.rated) {
+      let lx = (x1 + x2) / 2, ly = (y1 + y2) / 2;
+      if (Math.abs(dx) > 1 && Math.abs(dy) > 1) { const ty = ctr[1] - 40, t = (ty - y1) / dy; lx = x1 + dx * t; ly = ty; }
+      labels += `<rect x="${lx - 44}" y="${ly - 12}" width="88" height="24" rx="6" fill="var(--panel)" stroke="#3d5a1c" stroke-width="1.5"/>`;
+      labels += `<text x="${lx - 22}" y="${ly + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="${accent(p.a)}">${fmt(p.ab, 1)}</text>`;
+      labels += `<text x="${lx + 22}" y="${ly + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="${accent(p.b)}">${fmt(p.ba, 1)}</text>`;
+    }
+  });
+  let nodes = "";
+  order.forEach(gi => {
+    if (!pos[gi]) return;
+    const [x, y] = pos[gi];
+    if (typeof gi === "string") {            // expected GPU that was not detected
+      nodes += `<circle cx="${x}" cy="${y}" r="${R}" fill="var(--panel2)" stroke="var(--faint)" stroke-width="3" stroke-dasharray="6 5"/>`;
+      nodes += `<text x="${x}" y="${y + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="var(--faint)">—</text>`;
+      return;
+    }
+    const g = byIdx[gi] || {}, d = g.dcgm || {};
+    const sum = k => (g.nvlinks || []).some(l => l[k] != null) ? (g.nvlinks || []).reduce((a, l) => a + (l[k] || 0), 0) : null;
+    const rin = d.nvl_rx ?? sum("rx"), rout = d.nvl_tx ?? sum("tx");
+    nodes += `<circle cx="${x}" cy="${y}" r="${R}" fill="var(--panel2)" stroke="${accent(gi)}" stroke-width="4"/>`;
+    nodes += `<text x="${x}" y="${y - 3}" text-anchor="middle" font-size="14.5" font-weight="700" fill="#5cc8ff">${fmt(rin, 1)}</text>`;
+    nodes += `<text x="${x}" y="${y + 13}" text-anchor="middle" font-size="14.5" font-weight="700" fill="#b9a4ff">${fmt(rout, 1)}</text>`;
+    nodes += `<text x="${x}" y="${y + 26}" text-anchor="middle" font-size="8.5" font-weight="600" fill="var(--text)">GB/s</text>`;
+  });
+  const defs = `<defs><filter id="nvglow" filterUnits="userSpaceOnUse" x="-5000" y="-5000" width="10000" height="10000"><feGaussianBlur stdDeviation="3"/></filter></defs>`;
+  return defs + lines + labels + nodes;
+}
+
+function nvlinkPanel(gpus, order, mode) {
+  const net = nvPairs(gpus);
+  const notes = [];
+  if (net.downs.length) notes.push(`<div class="bad">LINK DOWN: ${net.downs.join(", ")}</div>`);
+  net.list.forEach(p => {
+    const e = p.errors, parts = [];
+    if (e.replay) parts.push(`${e.replay} replays`);
+    if (e.recovery) parts.push(`${e.recovery} recoveries`);
+    if (e.crc_flit || e.crc_data) parts.push(`${e.crc_flit + e.crc_data} CRC errors`);
+    if (parts.length) notes.push(`<div class="warn">GPU ${p.a} ⇄ GPU ${p.b}: ${parts.join(", ")}</div>`);
+  });
+  if (!notes.length) notes.push(`<div>No link errors</div>`);
+  if (!net.anyLinks) notes.length = 0, notes.push(`<div>No NVLink found</div>`);
+
+  const panel = $("nvlink");
+  panel.className = "card" + (net.downs.length ? " alert" : "");
+  const head = `<div class="ptitle"><h2>NVLink bandwidth</h2><span><span style="color:#5cc8ff">in</span> · <span style="color:#b9a4ff">out</span> GB/s</span></div>`;
+  const over = $("nvover");
+
+  if ((mode === "quad" || mode === "pair") && getComputedStyle($("main")).gridTemplateAreas !== "none") {
+    // Draw across the whole GPU area: each circle sits on the inner edge of its GPU card.
+    panel.innerHTML = head + `<div class="nvnote">${notes.join("")}</div>`;
+    const main = $("main"), Z = zoom, mr0 = main.getBoundingClientRect();
+    const mr = { left: mr0.left / Z, top: mr0.top / Z, width: mr0.width / Z, height: mr0.height / Z };
+    const pos = {};
+    order.forEach((gi, k) => {
+      const r0 = $("gpu" + gi).getBoundingClientRect();
+      const r = { left: r0.left / Z, right: r0.right / Z, top: r0.top / Z, height: r0.height / Z };
+      const x = k % 2 === 0 ? r.right - mr.left : r.left - mr.left;     // circle centered on the card's inner edge
+      pos[gi] = [x, r.top - mr.top + r.height / 2];
+    });
+    // Shrink the diagram 25% toward its middle so the circles sit inside the NVLink section.
+    const P = Object.values(pos), cx = P.reduce((a, p) => a + p[0], 0) / P.length, cy = P.reduce((a, p) => a + p[1], 0) / P.length;
+    for (const gi in pos) pos[gi] = [cx + (pos[gi][0] - cx) * (mode === "pair" ? 0.78 : 0.7), cy + (pos[gi][1] - cy) * 0.75];
+    over.setAttribute("viewBox", `0 0 ${mr.width} ${mr.height}`);
+    over.setAttribute("width", mr.width); over.setAttribute("height", mr.height);
+    over.innerHTML = drawNet(pos, order, net, 38, Object.fromEntries(gpus.map(g => [g.index, g])));
+    over.style.display = "block";
+  } else {
+    const n = order.length, pos = {};
+    order.forEach((gi, k) => { const a = 2 * Math.PI * k / n - Math.PI / 4 * (n === 4 ? 3 : 2);
+      pos[gi] = [165 + 115 * Math.cos(a), 165 + 115 * Math.sin(a)]; });
+    panel.innerHTML = head + `<svg id="nvsvg" viewBox="0 0 330 330">${drawNet(pos, order, net, 30, Object.fromEntries(gpus.map(g => [g.index, g])))}</svg><div class="nvnote">${notes.join("")}</div>`;
+    over.style.display = "none";
+  }
+}
+
+// ---------- CPU and RAM ----------
+function renderSystem(d) {
+  const c = d.cpu, r = d.ram;
+  if (c) {
+    $("cpuinfo").textContent = `${c.model || ""} · ${c.cores || "?"} cores, ${c.threads.length} threads · load ${c.load.map(v => v.toFixed(1)).join(" ")}`;
+    $("cpugauges").innerHTML =
+      gauge({ label: "Total use", value: c.total, max: 100, unit: "%", color: "#6f9bff", sub: c.freq ? `${fmt(c.freq / 1000, 2)} GHz` : "" }) +
+      gauge({ label: "Temperature", value: c.temp, max: 100, unit: "°C", zones: [[0, 60, GREEN], [60, 90, YELLOW], [90, 100.1, RED]], flash: c.temp >= 90 });
+    const el = $("threads"), n = c.threads.length, half = Math.ceil(n / 2);
+    if (el.children.length !== n) {
+      el.style.gridTemplateColumns = `repeat(${half}, 1fr)`;
+      // Column k holds thread k (top) and its sibling thread k + half (bottom).
+      el.innerHTML = Array.from({ length: n }, (_, k) => {
+        const id = k % 2 === 0 ? k / 2 : half + (k - 1) / 2;
+        return `<div class="thr" title="thread ${id}"><i id="th${id}"></i></div>`;
+      }).join("");
+    }
+    c.threads.forEach((v, k) => { const b = $("th" + k); if (b) { b.style.height = v + "%"; b.style.background = v >= 90 ? "var(--yellow)" : "#6f9bff"; } });
+  }
+  if (r) {
+    $("raminfo").textContent = `${fmt(r.total, 0)} GiB installed`;
+    $("ramgauge").innerHTML = gauge({ label: "In use", value: r.used, max: r.total, unit: "GiB", dec: 1,
+      zones: [[0, r.total * .8, GREEN], [r.total * .8, r.total * .95, YELLOW], [r.total * .95, r.total * 1.001, RED]],
+      sub: `${fmt(100 * r.used / r.total)}% of ${fmt(r.total, 0)}` });
+    const cache = Math.min(r.cache, r.total - r.used);
+    $("r-used").style.width = 100 * r.used / r.total + "%";
+    $("r-cache").style.width = 100 * cache / r.total + "%";
+    $("rv-used").textContent = `${fmt(r.used, 1)} GiB`;
+    $("rv-cache").textContent = `${fmt(cache, 1)} GiB`;
+    $("rv-free").textContent = `${fmt(r.total - r.used - cache, 1)} GiB`;
+    $("rv-swap").textContent = `${fmt(r.swap_used, 1)} / ${fmt(r.swap_total, 0)} GiB`;
+  }
+}
+
+// ---------- page ----------
+function uptime(s) {
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return d ? `${d}d ${h}h` : `${h}h ${m}m`;
+}
+// Screen order of GPUs: --slots (with grayed cards for missing GPUs), then --layout, then NVIDIA's order.
+function entriesOf(d, gpus) {
+  const byIdx = Object.fromEntries(gpus.map(g => [g.index, g]));
+  if (d.slots && d.slots.length) {
+    const byBus = Object.fromEntries(gpus.map(g => [(g.bdf || "").split(":")[1], g])), used = new Set();
+    const list = d.slots.map((bus, k) => {
+      const g = byBus[bus];
+      if (g) { used.add(g.index); return { id: g.index, gpu: g }; }
+      return { id: "m" + k, missing: true, bus, slot: k };
+    });
+    gpus.filter(g => !used.has(g.index)).forEach(g => list.push({ id: g.index, gpu: g }));
+    return list;
+  }
+  let order = (d.layout || "").split(",").map(s => parseInt(s)).filter(i => i in byIdx);
+  if (order.length !== gpus.length) order = gpus.map(g => g.index);
+  return order.map(i => ({ id: i, gpu: byIdx[i] }));
+}
+
+function missingCard(e) {
+  return `<div class="ghead"><span class="id" style="color:var(--faint)">Slot ${e.slot + 1}</span><span class="model">expected GPU</span>
+    <span class="bdf">0000:${e.bus}:00.0</span></div><div class="nd">Not detected</div>`;
+}
+
+function render(d) {
+  if (d.error) { $("err").style.display = "block"; $("err").textContent = "Reading error: " + d.error; return; }
+  $("err").style.display = "none";
+  interval = d.interval || 2; lastTime = d.time;
+  $("host").textContent = d.host || "nv-";
+  document.title = (d.host || "nv-") + " · nv-";
+  $("uptime").textContent = uptime(d.uptime);
+
+  const gpus = d.gpus || [];
+  const entries = entriesOf(d, gpus);
+  // GPUs with an NVLink to another GPU form the core group; expected-but-missing slots stay in it to keep their place.
+  const linked = new Set();
+  gpus.forEach(g => (g.nvlinks || []).forEach(l => { if (l.peer != null) { linked.add(g.index); linked.add(l.peer); } }));
+  let core, extra, mode;
+  if (!linked.size) { core = entries; extra = []; mode = entries.length === 1 ? "single" : "grid"; }
+  else {
+    core = entries.filter(e => e.missing || linked.has(e.id));
+    extra = entries.filter(e => !e.missing && !linked.has(e.id));
+    mode = core.length === 4 ? "quad" : core.length === 2 ? "pair" : "ring";
+  }
+  const key = mode + "|" + core.map(e => e.id).join(",") + "|" + extra.map(e => e.id).join(",");
+  const main = $("main");
+  const cardHtml = (e, k) => `<article class="card gpu${e.missing ? " missing" : ""}" id="gpu${e.id}"
+      style="--c:${e.missing ? "var(--faint)" : accent(e.id)};${(mode === "quad" || mode === "pair") && k >= 0 ? `grid-area:q${k}` : ""}"></article>`;
+  if (key !== built) {
+    main.className = "main " + mode;
+    main.innerHTML = core.map(cardHtml).join("")
+      + (linked.size ? `<section class="card" id="nvlink" style="${mode === "ring" ? "" : "grid-area:nv"}"></section><svg id="nvover"></svg>` : "");
+    $("extra").innerHTML = extra.map(e => cardHtml(e, -1)).join("");
+    built = key;
+  }
+  [...core, ...extra].forEach(e => {
+    const el = $("gpu" + e.id);
+    if (e.missing) { el.innerHTML = missingCard(e); return; }
+    el.innerHTML = gpuCard(e.gpu);
+    el.classList.toggle("hot", e.gpu.temp >= 90);
+  });
+  if (!entries.length) { main.innerHTML = `<div class="card" style="padding:16px">No NVIDIA GPUs found.</div>`; built = ""; }
+  else if (linked.size) nvlinkPanel(gpus, core.map(e => e.id), mode);
+  lastData = d;
+  renderSystem(d);
+  if (fit()) render(d);
+}
+async function tick() {
+  try { render(await (await fetch("api/stats", { cache: "no-store" })).json()); }
+  catch (e) { $("err").style.display = "block"; $("err").textContent = "Cannot reach nv- on the machine."; }
+  $("dot").className = "dot" + (Date.now() / 1000 - lastTime > interval * 3 ? " stale" : "");
+  $("updated").textContent = lastTime ? new Date(lastTime * 1000).toLocaleTimeString() : "—";
+  setTimeout(tick, interval * 1000);
+}
+tick();
+</script>
+</body>
+</html>

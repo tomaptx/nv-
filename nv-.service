@@ -1,0 +1,13 @@
+# Example systemd service for nv-.
+# Replace <user> with the account that runs nv-, and check the two paths.
+[Unit]
+Description=nv- GPU dashboard
+After=network.target nvidia-dcgm.service
+
+[Service]
+User=<user>
+ExecStart=/home/<user>/envs/nv-/bin/python /home/<user>/nv-/server.py --interval 2
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
