@@ -8,6 +8,7 @@ A live web dashboard for NVIDIA GPUs on a Linux machine. It shows every GPU as a
 
 
 Short video from a live training test.
+
 https://github.com/user-attachments/assets/ffa42ed9-1d2b-43e5-86d7-67c87456db18
 
 
