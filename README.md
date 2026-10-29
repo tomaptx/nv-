@@ -4,6 +4,10 @@ A live web dashboard for NVIDIA GPUs on a Linux machine. It shows every GPU as a
 
 ![nv- running in demo mode](docs/nv-.png)
 
+
+https://github.com/user-attachments/assets/ffa42ed9-1d2b-43e5-86d7-67c87456db18
+
+
 It is two files: a small Python program (`server.py`) that reads the hardware, and one web page (`index.html`) that draws it. No database, no build step, nothing to configure.
 
 ## What it shows
